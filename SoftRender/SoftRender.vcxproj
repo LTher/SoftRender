@@ -145,6 +145,7 @@
     <ClInclude Include="Source\Public\Math.h" />
     <ClInclude Include="Source\Public\Model.h" />
     <ClInclude Include="Source\Public\Shader.h" />
+    <ClInclude Include="Source\Public\Tga.h" />
     <ClInclude Include="Source\Public\Vertex.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -63,7 +63,9 @@ public:
 	}
 
 	void drawModel(const char* filename) {
+		//Model* model = new Model("obj/african_head.obj");
 		Model* model = new Model("obj/diablo3_pose.obj");
+		
 		Shader shader;
 
 		// draw lines
@@ -85,36 +87,114 @@ public:
 			}
 		}*/
 
+		//glm::vec3 light_dir(0, 0, -1);
+		//for (int i = 0; i < model->nfaces(); i++) {
+		//	std::vector<int> face = model->face(i);
+		//	glm::vec3 world_coords[3];
+		//	V2F v2fP[3];
+		//	for (int j = 0; j < 3; j++) {
+		//		world_coords[j] = model->vert(face[j]);
+		//		
+		//	}/*
+		//	triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));*/
+
+		//	glm::vec3 triangle_normal = glm::cross((world_coords[2] - world_coords[0]),(world_coords[1] - world_coords[0]));
+		//	float intensity = glm::dot(glm::normalize(triangle_normal) , light_dir) * 255;
+		//	if (intensity <= 0)continue;
+		//	for (int j = 0; j < 3; j++) {
+		//		//randnom color
+		//		//std::default_random_engine e;
+		//		//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
+		//		//e.seed(i);
+		//		//Vertex Vtemp(world_coords[j], glm::vec4(u(e), u(e), u(e), u(e)));
+
+		//		Vertex Vtemp(world_coords[j], glm::vec4(intensity, intensity, intensity, intensity));
+		//		v2fP[j] = shader.VertexShader(Vtemp);
+		//		v2fP[j].windowPos = ViewPortMatrix * v2fP[j].windowPos;
+		//	}
+
+		//	ScanLineTriangle(v2fP[0], v2fP[1], v2fP[2]);
+		//}
+
 		glm::vec3 light_dir(0, 0, -1);
+		float* zbuffer = new float[Width * Height];
+		for (int i = Width * Height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
+
 		for (int i = 0; i < model->nfaces(); i++) {
 			std::vector<int> face = model->face(i);
-			glm::vec3 world_coords[3];
-			V2F v2fP[3];
-			for (int j = 0; j < 3; j++) {
-				world_coords[j] = model->vert(face[j]);
-				
-			}/*
-			triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));*/
-
-			glm::vec3 triangle_normal = glm::cross((world_coords[2] - world_coords[0]),(world_coords[1] - world_coords[0]));
-			float intensity = glm::dot(glm::normalize(triangle_normal) , light_dir) * 255;
-			if (intensity <= 0)continue;
-			for (int j = 0; j < 3; j++) {
-				//randnom color
-				//std::default_random_engine e;
-				//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
-				//e.seed(i);
-				//Vertex Vtemp(world_coords[j], glm::vec4(u(e), u(e), u(e), u(e)));
-
-				Vertex Vtemp(world_coords[j], glm::vec4(intensity, intensity, intensity, intensity));
-				v2fP[j] = shader.VertexShader(Vtemp);
-				v2fP[j].windowPos = ViewPortMatrix * v2fP[j].windowPos;
+			glm::vec3 world_pts[3];
+			glm::vec3 pts[3];
+			for (int i = 0; i < 3; i++) {
+				world_pts[i] = model->vert(face[i]);
+				pts[i] = world2screen(world_pts[i]);
 			}
+			glm::vec3 triangle_normal = glm::cross((world_pts[2] - world_pts[0]), (world_pts[1] - world_pts[0]));
+			float intensity = glm::dot(glm::normalize(triangle_normal), light_dir) * 255;
+			if (intensity <= 0)continue;
+			glm::vec2 uv[3];
+			for (int k = 0; k < 3; k++) {
+				uv[k] = model->uv(i, k);
+			}
+			triangle(model, pts, zbuffer, uv, glm::vec4(intensity, intensity, intensity, intensity));
 
-			ScanLineTriangle(v2fP[0], v2fP[1], v2fP[2]);
+			//randnom color
+			//std::default_random_engine e;
+			//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
+			//e.seed(i);
+			//triangle(pts, zbuffer, glm::vec4(u(e), u(e), u(e), u(e)));
+
 		}
 
 		delete model;
+	}
+
+	glm::vec3 world2screen(glm::vec3  v) {
+		return glm::vec3(int((v.x + 1.) * Width / 2. + .5), int((v.y + 1.) * Height / 2. + .5), v.z);
+	}
+
+	glm::vec3 barycentric(glm::vec3 A, glm::vec3 B, glm::vec3 C, glm::vec3 P) {
+		glm::vec3 s[2];
+		for (int i = 2; i--; ) {
+			s[i][0] = C[i] - A[i];
+			s[i][1] = B[i] - A[i];
+			s[i][2] = A[i] - P[i];
+		}
+		glm::vec3 u = cross(s[0], s[1]);
+		if (std::abs(u[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate
+			return glm::vec3(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+		return glm::vec3(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
+	}
+
+	void triangle(Model* model, glm::vec3* pts, float* zbuffer, glm::vec2* uv, glm::vec4 intensity) {
+		glm::vec2 bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+		glm::vec2 bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+		glm::vec2 clamp(Width - 1, Height - 1);
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 2; j++) {
+				bboxmin[j] = std::max(0.f, std::min(bboxmin[j], pts[i][j]));
+				bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+			}
+		}
+		glm::vec3 P;
+		for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+			for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+				glm::vec3 bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+				glm::vec3 uv_screen = barycentric(glm::vec3(uv[0], 0), glm::vec3(uv[1], 0), glm::vec3(uv[2], 0), P);
+				if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+				P.z = 0;
+				glm::vec2 uvP(0, 0);
+				for (int i = 0; i < 3; i++) {
+					P.z += pts[i][2] * bc_screen[i];
+					uvP.x += uv[i][0] * uv_screen[i];
+					uvP.y += uv[i][1] * uv_screen[i];
+				}
+				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
+					zbuffer[int(P.x + P.y * Height)] = P.z;
+					glm::vec4 color = model->diffuse(uvP);
+					FrontBuffer->WritePoint(P.x, P.y, color);
+				}
+			}
+		}
 	}
 
 #pragma region Rasterization
