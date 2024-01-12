@@ -84,6 +84,8 @@ void Model::load_texture(std::string filename, const char* suffix, cv::Mat& img)
 		//memcpy(tempImg.data, tgaImg.GetPixels().data(), tgaImg.GetHeight() * tgaImg.GetWidth() * 3);
 
 		img = cv::imread(texfile);
+
+		//flip(img, img, -1);
 		/*cv::imshow("texture", img);
 		cv::waitKey();*/
 	}
@@ -92,7 +94,9 @@ void Model::load_texture(std::string filename, const char* suffix, cv::Mat& img)
 glm::vec4 Model::diffuse(glm::vec2 uv) {
 	//return diffusemap_.get(uv.x, uv.y);
 	//cv::Vec4b cvColor = diffusemap_.at<cv::Vec4b>(int(uv.x), int(uv.y));
-	cv::Vec3b cvColor = diffusemap_.at<cv::Vec3b>(int(uv.y), int(uv.x));
+	// 
+	// opencv 行列顺序不同需要改写
+	cv::Vec3b cvColor = diffusemap_.at<cv::Vec3b>(int(diffusemap_.cols -uv.y), int(uv.x));
 
 	return glm::vec4(cvColor[0], cvColor[1], cvColor[2], 1);
 }

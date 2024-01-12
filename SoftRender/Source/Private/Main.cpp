@@ -233,7 +233,7 @@ int main() {
         //dw->ScanLineTriangle(o1, o2, o3);
         dw->drawModel("");
         mat = Mat(SCR_HEIGHT, SCR_WIDTH, CV_8UC4, dw->FrontBuffer->colorBuffer.data()).clone();
-        flip(mat, mat, -1);
+        flip(mat, mat, 0);
         //mat = imread("ss"+ std::to_string(picIndex%4+1)+".png").clone();
         imshow("CV", mat);
         picIndex++;

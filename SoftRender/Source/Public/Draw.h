@@ -129,7 +129,7 @@ public:
 				pts[i] = world2screen(world_pts[i]);
 			}
 			glm::vec3 triangle_normal = glm::cross((world_pts[2] - world_pts[0]), (world_pts[1] - world_pts[0]));
-			float intensity = glm::dot(glm::normalize(triangle_normal), light_dir) * 255;
+			float intensity = glm::dot(glm::normalize(triangle_normal), light_dir);
 			if (intensity <= 0)continue;
 			glm::vec2 uv[3];
 			for (int k = 0; k < 3; k++) {
@@ -185,13 +185,14 @@ public:
 				glm::vec2 uvP(0, 0);
 				for (int i = 0; i < 3; i++) {
 					P.z += pts[i][2] * bc_screen[i];
-					uvP.x += uv[i][0] * uv_screen[i];
-					uvP.y += uv[i][1] * uv_screen[i];
+					uvP.x += uv[i][0] * bc_screen[i];
+					uvP.y += uv[i][1] * bc_screen[i];
 				}
+				//uvP = uv[0];
 				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
 					zbuffer[int(P.x + P.y * Height)] = P.z;
 					glm::vec4 color = model->diffuse(uvP);
-					FrontBuffer->WritePoint(P.x, P.y, color);
+					FrontBuffer->WritePoint(P.x, P.y, color* intensity);
 				}
 			}
 		}
