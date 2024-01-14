@@ -65,7 +65,7 @@ public:
 	void drawModel(const char* filename) {
 		//Model* model = new Model("obj/african_head.obj");
 		Model* model = new Model("obj/diablo3_pose.obj");
-		
+
 		Shader shader;
 
 		// draw lines
@@ -132,12 +132,14 @@ public:
 			float intensity = glm::dot(glm::normalize(triangle_normal), light_dir);
 			if (intensity <= 0)continue;
 			glm::vec2 uv[3];
+			glm::vec3 normal[3];
 			for (int k = 0; k < 3; k++) {
 				uv[k] = model->uv(i, k);
+				normal[k] = model->normal(i, k);
 			}
-			triangle(model, pts, zbuffer, uv, glm::vec4(intensity, intensity, intensity, intensity));
+			triangle(model, zbuffer, pts, uv, normal, light_dir, glm::vec4(intensity, intensity, intensity, intensity));
 
-			//randnom color
+			//random color
 			//std::default_random_engine e;
 			//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
 			//e.seed(i);
@@ -165,7 +167,7 @@ public:
 		return glm::vec3(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 	}
 
-	void triangle(Model* model, glm::vec3* pts, float* zbuffer, glm::vec2* uv, glm::vec4 intensity) {
+	void triangle(Model* model, float* zbuffer, glm::vec3* pts, glm::vec2* uvs, glm::vec3* normals, glm::vec3 light_dir, glm::vec4 triangle_light_intensity) {
 		glm::vec2 bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		glm::vec2 bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
 		glm::vec2 clamp(Width - 1, Height - 1);
@@ -179,20 +181,27 @@ public:
 		for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 			for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
 				glm::vec3 bc_screen = barycentric(pts[0], pts[1], pts[2], P);
-				glm::vec3 uv_screen = barycentric(glm::vec3(uv[0], 0), glm::vec3(uv[1], 0), glm::vec3(uv[2], 0), P);
+				glm::vec3 uv_screen = barycentric(glm::vec3(uvs[0], 0), glm::vec3(uvs[1], 0), glm::vec3(uvs[2], 0), P);
 				if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
 				P.z = 0;
 				glm::vec2 uvP(0, 0);
+				glm::vec3 normalP(0, 0, 0);
 				for (int i = 0; i < 3; i++) {
 					P.z += pts[i][2] * bc_screen[i];
-					uvP.x += uv[i][0] * bc_screen[i];
-					uvP.y += uv[i][1] * bc_screen[i];
+					uvP.x += uvs[i][0] * bc_screen[i];
+					uvP.y += uvs[i][1] * bc_screen[i];
+					normalP.x += normals[i][0] * bc_screen[i];
+					normalP.y += normals[i][1] * bc_screen[i];
+					normalP.z += normals[i][2] * bc_screen[i];
 				}
 				//uvP = uv[0];
 				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
 					zbuffer[int(P.x + P.y * Height)] = P.z;
 					glm::vec4 color = model->diffuse(uvP);
-					FrontBuffer->WritePoint(P.x, P.y, color* intensity);
+					float intensity = glm::dot(glm::normalize(normalP), light_dir);
+					//if (intensity <= 0)continue;
+					glm::vec4 light = glm::vec4(intensity, intensity, intensity, intensity);
+					FrontBuffer->WritePoint(P.x, P.y, color * triangle_light_intensity);
 				}
 			}
 		}

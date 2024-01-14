@@ -105,3 +105,8 @@ glm::vec2 Model::uv(int iface, int nvert) {
 	int idx = faces_[iface][nvert][1];
 	return glm::vec2(uv_[idx].x * diffusemap_.cols, uv_[idx].y * diffusemap_.rows);
 }
+
+glm::vec3 Model::normal(int iface, int nvert) {
+	int idx = faces_[iface][nvert][2];
+	return glm::normalize(norms_[idx]);
+}

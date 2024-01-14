@@ -20,6 +20,7 @@ public:
 	int nfaces();
 	glm::vec3 vert(int i);
 	glm::vec2 uv(int iface, int nvert);
+	glm::vec3 normal(int iface, int nvert);
 	glm::vec4 diffuse(glm::vec2 uv);
 	std::vector<int> face(int idx);
 };
