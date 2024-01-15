@@ -4,12 +4,12 @@
 //#include "Texture.h"
 #include "Vertex.h"
 
-class Shader {
+class ShaderOld {
 public:
 
-	Shader() = default;
+	ShaderOld() = default;
 
-	virtual ~Shader() = default;
+	virtual ~ShaderOld() = default;
 	virtual V2F VertexShader(const Vertex& a2v) {
 		V2F o;
 		o.worldPos = ModelMatrix * a2v.position;
