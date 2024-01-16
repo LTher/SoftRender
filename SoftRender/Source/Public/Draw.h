@@ -11,6 +11,9 @@
 //#include "Cull.h"
 //#include "PBR.h"
 //#include "Skybox.h"
+
+using namespace glm;
+
 class Draw {
 
 private:
@@ -62,10 +65,40 @@ public:
 		glDrawPixels(Width, Height, GL_RGBA, GL_UNSIGNED_BYTE, FrontBuffer->colorBuffer.data());
 	}
 
+	vec3 light_dir = normalize(vec3(1, -1, 1));
+	vec3 eye = vec3(1, 1, 3);
+	vec3 center = vec3(0, 0, 0);
+
+	mat4 viewport(int x, int y, int w, int h) {
+		mat4 m = mat4(1.0f);
+		m[0][3] = x + w / 2.f;
+		m[1][3] = y + h / 2.f;
+		m[2][3] = depth / 2.f;
+
+		m[0][0] = w / 2.f;
+		m[1][1] = h / 2.f;
+		m[2][2] = depth / 2.f;
+		return m;
+	}
+
+	mat4 lookat(Vec3f eye, Vec3f center, Vec3f up) {
+		Vec3f z = normalize(eye - center);
+		Vec3f x = (up ^ z).normalize();
+		Vec3f y = (z ^ x).normalize();
+		mat4 res = Matrix::identity(4);
+		for (int i = 0; i < 3; i++) {
+			res[0][i] = x[i];
+			res[1][i] = y[i];
+			res[2][i] = z[i];
+			res[i][3] = -center[i];
+		}
+		return res;
+	}
+
 	void drawModel(const char* filename) {
 		//Model* model = new Model("obj/african_head.obj");
 		Model* model = new Model("obj/diablo3_pose.obj");
-		
+
 		Shader shader;
 
 		// draw lines
@@ -192,186 +225,10 @@ public:
 				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
 					zbuffer[int(P.x + P.y * Height)] = P.z;
 					glm::vec4 color = model->diffuse(uvP);
-					FrontBuffer->WritePoint(P.x, P.y, color* intensity);
+					FrontBuffer->WritePoint(P.x, P.y, color * intensity);
 				}
 			}
 		}
 	}
-
-#pragma region Rasterization
-	//扫描线填充算法
-	//对任意三角形，分为上下两个平底三角形填充
-	void ScanLineTriangle(const V2F& v1, const V2F& v2, const V2F& v3) {
-
-		std::vector<V2F> arr = { v1,v2,v3 };
-		if (arr[0].windowPos.y > arr[1].windowPos.y) {
-			V2F tmp = arr[0];
-			arr[0] = arr[1];
-			arr[1] = tmp;
-		}
-		if (arr[1].windowPos.y > arr[2].windowPos.y) {
-			V2F tmp = arr[1];
-			arr[1] = arr[2];
-			arr[2] = tmp;
-		}
-		if (arr[0].windowPos.y > arr[1].windowPos.y) {
-			V2F tmp = arr[0];
-			arr[0] = arr[1];
-			arr[1] = tmp;
-		}
-		//arr[0] 在最下面  arr[2]在最上面
-
-		//中间跟上面的相等，是底三角形
-		if (equal(arr[1].windowPos.y, arr[2].windowPos.y)) {
-			DownTriangle(arr[1], arr[2], arr[0]);
-		}//顶三角形
-		else if (equal(arr[1].windowPos.y, arr[0].windowPos.y)) {
-			UpTriangle(arr[1], arr[0], arr[2]);
-		}
-		else {
-			float weight = (arr[2].windowPos.y - arr[1].windowPos.y) / (arr[2].windowPos.y - arr[0].windowPos.y);
-			V2F newEdge = V2F::lerp(arr[2], arr[0], weight);
-			UpTriangle(arr[1], newEdge, arr[2]);
-			DownTriangle(arr[1], newEdge, arr[0]);
-		}
-
-
-	}
-	void UpTriangle(const V2F& v1, const V2F& v2, const V2F& v3) {
-		V2F left, right, top;
-		left = v1.windowPos.x > v2.windowPos.x ? v2 : v1;
-		right = v1.windowPos.x > v2.windowPos.x ? v1 : v2;
-		top = v3;
-		left.windowPos.x = int(left.windowPos.x);
-		int dy = top.windowPos.y - left.windowPos.y;
-		int nowY = top.windowPos.y;
-		//从上往下插值
-		for (int i = dy; i >= 0; i--) {
-			float weight = 0;
-			if (dy != 0) {
-				weight = (float)i / dy;
-			}
-			V2F newLeft = V2F::lerp(left, top, weight);
-			V2F newRight = V2F::lerp(right, top, weight);
-			newLeft.windowPos.x = int(newLeft.windowPos.x);
-			newRight.windowPos.x = int(newRight.windowPos.x + 0.5);
-			newLeft.windowPos.y = newRight.windowPos.y = nowY;
-			ScanLine(newLeft, newRight);
-			nowY--;
-		}
-	}
-	void DownTriangle(const V2F& v1, const V2F& v2, const V2F& v3) {
-		V2F left, right, bottom;
-		left = v1.windowPos.x > v2.windowPos.x ? v2 : v1;
-		right = v1.windowPos.x > v2.windowPos.x ? v1 : v2;
-		bottom = v3;
-
-		int dy = left.windowPos.y - bottom.windowPos.y;
-		int nowY = left.windowPos.y;
-		//从上往下插值
-		for (int i = 0; i < dy; i++) {
-			float weight = 0;
-			if (dy != 0) {
-				weight = (float)i / dy;
-			}
-			V2F newLeft = V2F::lerp(left, bottom, weight);
-			V2F newRight = V2F::lerp(right, bottom, weight);
-			newLeft.windowPos.x = int(newLeft.windowPos.x);
-			newRight.windowPos.x = int(newRight.windowPos.x + 0.5);
-			newLeft.windowPos.y = newRight.windowPos.y = nowY;
-			ScanLine(newLeft, newRight);
-			nowY--;
-		}
-	}
-	void ScanLine(const V2F& left, const V2F& right) {
-
-		int length = right.windowPos.x - left.windowPos.x;
-		for (int i = 0; i < length; i++) {
-			V2F v = V2F::lerp(left, right, (float)i / length);
-			v.windowPos.x = left.windowPos.x + i;
-			v.windowPos.y = left.windowPos.y;
-
-			//深度测试
-		/*	float depth = FrontBuffer->GetDepth(v.windowPos.x, v.windowPos.y);
-			if (v.windowPos.z <= depth) {
-
-				float z = v.Z;
-				v.worldPos /= z;
-				v.normal /= z;
-				v.texcoord /= z;
-				v.color /= z;
-
-				FrontBuffer->WritePoint(v.windowPos.x, v.windowPos.y, currentMat->shader->FragmentShader(v));
-				if (depthWrite)
-					FrontBuffer->WriteDepth(v.windowPos.x, v.windowPos.y, v.windowPos.z);
-			}*/
-			FrontBuffer->WritePoint(v.windowPos.x, v.windowPos.y, shader->FragmentShader(v));
-		}
-	}
-	//bresenhamLine 画线算法
-	void DrawLine(const V2F& from, const V2F& to)
-	{
-		int dx = to.windowPos.x - from.windowPos.x;
-		int dy = to.windowPos.y - from.windowPos.y;
-		int Xstep = 1, Ystep = 1;
-		if (dx < 0)
-		{
-			Xstep = -1;
-			dx = -dx;
-		}
-		if (dy < 0)
-		{
-			Ystep = -1;
-			dy = -dy;
-		}
-		int currentX = from.windowPos.x;
-		int currentY = from.windowPos.y;
-		V2F tmp;
-		//斜率小于1
-		if (dy <= dx)
-		{
-			int P = 2 * dy - dx;
-			for (int i = 0; i <= dx; ++i)
-			{
-				tmp = V2F::lerp(from, to, ((float)(i) / dx));
-				FrontBuffer->WritePoint(currentX, currentY, glm::vec4(255, 0, 0, 0));
-				currentX += Xstep;
-				if (P <= 0)
-					P += 2 * dy;
-				else
-				{
-					currentY += Ystep;
-					P += 2 * (dy - dx);
-				}
-			}
-		}
-		//斜率大于1，利用对称性画
-		else
-		{
-			int P = 2 * dx - dy;
-			for (int i = 0; i <= dy; ++i)
-			{
-				tmp = V2F::lerp(from, to, ((float)(i) / dy));
-				FrontBuffer->WritePoint(currentX, currentY, glm::vec4(255, 0, 0, 0));
-				currentY += Ystep;
-				if (P <= 0)
-					P += 2 * dx;
-				else
-				{
-					currentX += Xstep;
-					P -= 2 * (dy - dx);
-				}
-			}
-		}
-	}
-#pragma endregion Rasterization
-
 };
-
-#pragma WireframeRendering
-
-
-
-#pragma endregion WireframeRendering
-
 #endif
