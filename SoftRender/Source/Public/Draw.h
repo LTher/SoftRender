@@ -69,31 +69,42 @@ public:
 	vec3 eye = vec3(1, 1, 3);
 	vec3 center = vec3(0, 0, 0);
 
-	mat4 viewport(int x, int y, int w, int h) {
-		mat4 m = mat4(1.0f);
-		m[0][3] = x + w / 2.f;
-		m[1][3] = y + h / 2.f;
-		m[2][3] = depth / 2.f;
+	mat4 ModelView;
+	mat4 Viewport;
+	mat4 Projection;
 
-		m[0][0] = w / 2.f;
-		m[1][1] = h / 2.f;
-		m[2][2] = depth / 2.f;
-		return m;
+
+	void viewport(const int x, const int y, const int w, const int h) {
+		Viewport = mat4(1.0f);
+		Viewport[0][3] = x + w / 2.f;
+		Viewport[1][3] = y + h / 2.f;
+		Viewport[2][3] = 255.f / 2.f;
+		Viewport[0][0] = w / 2.f;
+		Viewport[1][1] = h / 2.f;
+		Viewport[2][2] = 255.f / 2.f;
+		Viewport = transpose(Viewport);
 	}
 
-	mat4 lookat(Vec3f eye, Vec3f center, Vec3f up) {
-		Vec3f z = normalize(eye - center);
-		Vec3f x = (up ^ z).normalize();
-		Vec3f y = (z ^ x).normalize();
-		mat4 res = Matrix::identity(4);
+	void projection(float coeff) { // check https://en.wikipedia.org/wiki/Camera_matrix
+		Projection = mat4(1.0f);
+		Projection[3][2] = coeff;
+		Projection = transpose(Projection);
+	}
+
+	void lookat(const vec3 eye, const vec3 center, const vec3 up) { // check https://github.com/ssloy/tinyrenderer/wiki/Lesson-5-Moving-the-camera
+		vec3 z = normalize(center - eye);
+		vec3 x = normalize(cross(up, z));
+		vec3 y = normalize(cross(z, x));
+		ModelView = mat4(1.0f);
 		for (int i = 0; i < 3; i++) {
-			res[0][i] = x[i];
-			res[1][i] = y[i];
-			res[2][i] = z[i];
-			res[i][3] = -center[i];
+			ModelView[0][i] = x[i];
+			ModelView[1][i] = y[i];
+			ModelView[2][i] = z[i];
+			ModelView[i][3] = -center[i];
 		}
-		return res;
+		Projection = transpose(Projection);
 	}
+
 
 	void drawModel(const char* filename) {
 		//Model* model = new Model("obj/african_head.obj");
