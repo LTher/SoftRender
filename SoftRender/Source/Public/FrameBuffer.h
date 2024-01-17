@@ -7,12 +7,13 @@
 #include <vector>
 class FrameBuffer {
 public:
-	int Width, Height;
+	int Width, Height,idx;
 	std::vector<unsigned char> colorBuffer;
 	~FrameBuffer() = default;
-	FrameBuffer(const int& w = 800, const int& h = 600) {
+	FrameBuffer(const int& w = 800, const int& h = 600, const int& id=0) {
 		Width = w;
 		Height = h;
+		idx = id;
 		//RGBA
 		colorBuffer.resize(w * h * 4, 0);
 	}
