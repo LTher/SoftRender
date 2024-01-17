@@ -19,6 +19,9 @@ public:
 	int nverts();
 	int nfaces();
 	glm::vec3 vert(int i);
+	glm::vec3 vert(const int iface, const int nthvert) const;
+	glm::vec3 normal(int i);
+	glm::vec3 normal(const int iface, const int nthvert) const;
 	glm::vec2 uv(int iface, int nvert);
 	glm::vec4 diffuse(glm::vec2 uv);
 	std::vector<int> face(int idx);

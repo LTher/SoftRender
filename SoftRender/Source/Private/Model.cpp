@@ -71,6 +71,22 @@ glm::vec3 Model::vert(int i) {
 	return verts_[i];
 }
 
+glm::vec3 Model::vert(const int iface, const int nthvert) const {
+	std::vector<int> curFace;
+	for (int i = 0; i < (int)faces_[iface].size(); i++) curFace.push_back(faces_[iface][i][0]);
+	return verts_[curFace[nthvert]];
+}
+
+glm::vec3 Model::normal(int i) {
+	return norms_[i];
+}
+
+glm::vec3 Model::normal(const int iface, const int nthvert) const {
+	std::vector<int> curFace;
+	for (int i = 0; i < (int)faces_[iface].size(); i++) curFace.push_back(faces_[iface][i][1]);
+	return norms_[curFace[nthvert]];
+}
+
 void Model::load_texture(std::string filename, const char* suffix, cv::Mat& img) {
 	std::string texfile(filename);
 	size_t dot = texfile.find_last_of(".");
@@ -96,7 +112,7 @@ glm::vec4 Model::diffuse(glm::vec2 uv) {
 	//cv::Vec4b cvColor = diffusemap_.at<cv::Vec4b>(int(uv.x), int(uv.y));
 	// 
 	// opencv 行列顺序不同需要改写
-	cv::Vec3b cvColor = diffusemap_.at<cv::Vec3b>(int(diffusemap_.cols -uv.y), int(uv.x));
+	cv::Vec3b cvColor = diffusemap_.at<cv::Vec3b>(int(diffusemap_.cols - uv.y), int(uv.x));
 
 	return glm::vec4(cvColor[0], cvColor[1], cvColor[2], 1);
 }

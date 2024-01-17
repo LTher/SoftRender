@@ -13,6 +13,59 @@
 //#include "Skybox.h"
 
 using namespace glm;
+using namespace cv;
+
+static vec4 embed(vec3 v, double fill = 1) {
+	return vec4(v, fill);
+}
+static vec3 embed(vec2 v, double fill = 1) {
+	return vec3(v, fill);
+}
+static vec3 proj(vec4 v) {
+	return vec3(v);
+}
+static vec2 proj(vec3 v) {
+	return vec2(v);
+}
+static vec1 proj(vec2 v) {
+	return vec1(v);
+}
+
+struct IShader {
+	static vec4 sample2D(const Mat& img, vec2& uvf) {
+		//return img.get(uvf[0] * img.width(), uvf[1] * img.height());
+		Vec3b cvColor = img.at<Vec3b>(int(img.cols - uvf.y), int(uvf.x));
+
+		return vec4(cvColor[0], cvColor[1], cvColor[2], 1);
+	}
+	virtual bool fragment(const vec3 bar, vec4& color) = 0;
+};
+
+
+struct GouraudShader : public IShader {
+	Model& model;
+	vec3 light_dir;
+	vec3 varying_intensity; // written by vertex shader, read by fragment shader
+
+	GouraudShader(Model& m, vec3 light) : model(m), light_dir(light) {
+		model = m;
+	}
+
+	virtual vec4 vertex(int iface, int nthvert) {
+		vec4 gl_Vertex = embed(model.vert(iface, nthvert)); // read the vertex from .obj file
+		//gl_Vertex = Viewport * Projection * ModelView * gl_Vertex;     // transform it to screen coordinates
+		float cur_intensity = dot(model.normal(iface, nthvert), light_dir);
+		varying_intensity[nthvert] = std::max(0.f, cur_intensity); // get diffuse lighting intensity
+		return gl_Vertex;
+	}
+
+	virtual bool fragment(vec3 bar, vec4& color) {
+		float intensity = dot(varying_intensity, bar);   // interpolate intensity for the current pixel
+		if (intensity <= 0.f) return true;
+		color = vec4(255, 255, 255, 255) * intensity; // well duh
+		return false;                              // no, we do not discard this pixel
+	}
+};
 
 class Draw {
 
@@ -110,55 +163,8 @@ public:
 		//Model* model = new Model("obj/african_head.obj");
 		Model* model = new Model("obj/diablo3_pose.obj");
 
-		Shader shader;
-
-		// draw lines
-		/*for (int i = 0; i < model->nfaces(); i++) {
-			std::vector<int> face = model->face(i);
-			for (int j = 0; j < 3; j++) {
-				glm::vec3 v0 = model->vert(face[j]);
-				glm::vec3 v1 = model->vert(face[(j + 1) % 3]);
-
-				Vertex V1(v0, glm::vec4(255, 0, 0, 0));
-				Vertex V2(v1);
-
-				V2F o1 = shader.VertexShader(V1);
-				V2F o2 = shader.VertexShader(V2);
-
-				o1.windowPos = ViewPortMatrix * o1.windowPos;
-				o2.windowPos = ViewPortMatrix * o2.windowPos;
-				DrawLine(o1, o2);
-			}
-		}*/
-
-		//glm::vec3 light_dir(0, 0, -1);
-		//for (int i = 0; i < model->nfaces(); i++) {
-		//	std::vector<int> face = model->face(i);
-		//	glm::vec3 world_coords[3];
-		//	V2F v2fP[3];
-		//	for (int j = 0; j < 3; j++) {
-		//		world_coords[j] = model->vert(face[j]);
-		//		
-		//	}/*
-		//	triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));*/
-
-		//	glm::vec3 triangle_normal = glm::cross((world_coords[2] - world_coords[0]),(world_coords[1] - world_coords[0]));
-		//	float intensity = glm::dot(glm::normalize(triangle_normal) , light_dir) * 255;
-		//	if (intensity <= 0)continue;
-		//	for (int j = 0; j < 3; j++) {
-		//		//randnom color
-		//		//std::default_random_engine e;
-		//		//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
-		//		//e.seed(i);
-		//		//Vertex Vtemp(world_coords[j], glm::vec4(u(e), u(e), u(e), u(e)));
-
-		//		Vertex Vtemp(world_coords[j], glm::vec4(intensity, intensity, intensity, intensity));
-		//		v2fP[j] = shader.VertexShader(Vtemp);
-		//		v2fP[j].windowPos = ViewPortMatrix * v2fP[j].windowPos;
-		//	}
-
-		//	ScanLineTriangle(v2fP[0], v2fP[1], v2fP[2]);
-		//}
+		//Shader shader;
+		GouraudShader shader(*model, light_dir);
 
 		glm::vec3 light_dir(0, 0, -1);
 		float* zbuffer = new float[Width * Height];
@@ -168,9 +174,11 @@ public:
 			std::vector<int> face = model->face(i);
 			glm::vec3 world_pts[3];
 			glm::vec3 pts[3];
-			for (int i = 0; i < 3; i++) {
-				world_pts[i] = model->vert(face[i]);
-				pts[i] = world2screen(world_pts[i]);
+			glm::vec4 clip_vert[3];
+			for (int j = 0; j < 3; j++) {
+				world_pts[j] = model->vert(face[j]);
+				pts[j] = world2screen(world_pts[j]);
+				clip_vert[j] = shader.vertex(i, j);
 			}
 			glm::vec3 triangle_normal = glm::cross((world_pts[2] - world_pts[0]), (world_pts[1] - world_pts[0]));
 			float intensity = glm::dot(glm::normalize(triangle_normal), light_dir);
