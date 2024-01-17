@@ -14,6 +14,62 @@
 
 using namespace glm;
 
+static vec4 embed(vec3 v, double fill = 1) {
+	return vec4(v, fill);
+}
+static vec3 embed(vec2 v, double fill = 1) {
+	return vec3(v, fill);
+}
+static vec3 proj(vec4 v) {
+	return vec3(v);
+}
+static vec2 proj(vec3 v) {
+	return vec2(v);
+}
+static vec1 proj(vec2 v) {
+	return vec1(v);
+}
+
+struct IShader {
+	static vec4 sample2D(const Mat& img, vec2& uvf) {
+		//return img.get(uvf[0] * img.width(), uvf[1] * img.height());
+		Vec3b cvColor = img.at<Vec3b>(int(img.cols - uvf.y), int(uvf.x));
+
+		return vec4(cvColor[0], cvColor[1], cvColor[2], 1);
+	}
+	virtual bool fragment(const vec3 bar, vec4& color) = 0;
+};
+
+
+struct GouraudShader : public IShader {
+	Model& model;
+	vec3 light_dir;
+
+	mat4 ModelView;
+	mat4 Viewport;
+	mat4 Projection;
+
+	vec3 varying_intensity; // written by vertex shader, read by fragment shader
+
+	GouraudShader(Model& m, mat4 mv, mat4 vp, mat4 proj, vec3 light) : model(m), ModelView(mv), Viewport(vp), Projection(proj), light_dir(light) {
+	}
+
+	virtual vec4 vertex(int iface, int nthvert) {
+		vec4 gl_Vertex = embed(model.vert(iface, nthvert)); // read the vertex from .obj file
+		gl_Vertex = Viewport * Projection * ModelView * gl_Vertex;     // transform it to screen coordinates
+		float cur_intensity = dot(model.normal(iface, nthvert), light_dir);
+		varying_intensity[nthvert] = std::max(0.f, cur_intensity); // get diffuse lighting intensity
+		return gl_Vertex;
+	}
+
+	virtual bool fragment(vec3 bar, vec4& color) {
+		float intensity = dot(varying_intensity, bar);   // interpolate intensity for the current pixel
+		if (intensity <= 0.f) return true;
+		color = vec4(255, 255, 255, 255) * intensity; // well duh
+		return false;                              // no, we do not discard this pixel
+	}
+};
+
 class Draw {
 
 private:
@@ -106,67 +162,24 @@ public:
 	}
 
 
-	void drawModel(const char* filename) {
+	Model* loadModel(const char* filename) {
+		return new Model(filename);
+	}
+
+	void drawModel(Model* model) {
 		//Model* model = new Model("obj/african_head.obj");
-		Model* model = new Model("obj/diablo3_pose.obj");
+		//Model* model = new Model("obj/diablo3_pose.obj");
 
-		Shader shader;
-
-		// draw lines
-		/*for (int i = 0; i < model->nfaces(); i++) {
-			std::vector<int> face = model->face(i);
-			for (int j = 0; j < 3; j++) {
-				glm::vec3 v0 = model->vert(face[j]);
-				glm::vec3 v1 = model->vert(face[(j + 1) % 3]);
-
-				Vertex V1(v0, glm::vec4(255, 0, 0, 0));
-				Vertex V2(v1);
-
-				V2F o1 = shader.VertexShader(V1);
-				V2F o2 = shader.VertexShader(V2);
-
-				o1.windowPos = ViewPortMatrix * o1.windowPos;
-				o2.windowPos = ViewPortMatrix * o2.windowPos;
-				DrawLine(o1, o2);
-			}
-		}*/
+		//Shader shader;
 
 		//glm::vec3 light_dir(0, 0, -1);
-		//for (int i = 0; i < model->nfaces(); i++) {
-		//	std::vector<int> face = model->face(i);
-		//	glm::vec3 world_coords[3];
-		//	V2F v2fP[3];
-		//	for (int j = 0; j < 3; j++) {
-		//		world_coords[j] = model->vert(face[j]);
-		//		
-		//	}/*
-		//	triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));*/
-
-		//	glm::vec3 triangle_normal = glm::cross((world_coords[2] - world_coords[0]),(world_coords[1] - world_coords[0]));
-		//	float intensity = glm::dot(glm::normalize(triangle_normal) , light_dir) * 255;
-		//	if (intensity <= 0)continue;
-		//	for (int j = 0; j < 3; j++) {
-		//		//randnom color
-		//		//std::default_random_engine e;
-		//		//std::uniform_int_distribution<int> u(0, 255); // ×ó±ÕÓÒ±ÕÇø¼ä
-		//		//e.seed(i);
-		//		//Vertex Vtemp(world_coords[j], glm::vec4(u(e), u(e), u(e), u(e)));
-
-		//		Vertex Vtemp(world_coords[j], glm::vec4(intensity, intensity, intensity, intensity));
-		//		v2fP[j] = shader.VertexShader(Vtemp);
-		//		v2fP[j].windowPos = ViewPortMatrix * v2fP[j].windowPos;
-		//	}
-
-		//	ScanLineTriangle(v2fP[0], v2fP[1], v2fP[2]);
-		//}
-
-		glm::vec3 light_dir(0, 0, -1);
 		float* zbuffer = new float[Width * Height];
 		for (int i = Width * Height; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
+		GouraudShader shader(*model, ModelView, Viewport, Projection, light_dir);
 		for (int i = 0; i < model->nfaces(); i++) {
-			std::vector<int> face = model->face(i);
-			glm::vec3 world_pts[3];
+			//std::vector<int> face = model->face(i);
+			/*glm::vec3 world_pts[3];
 			glm::vec3 pts[3];
 			for (int i = 0; i < 3; i++) {
 				world_pts[i] = model->vert(face[i]);
@@ -178,8 +191,15 @@ public:
 			glm::vec2 uv[3];
 			for (int k = 0; k < 3; k++) {
 				uv[k] = model->uv(i, k);
-			}
-			triangle(model, pts, zbuffer, uv, glm::vec4(intensity, intensity, intensity, intensity));
+			}*/
+
+			vec4 clip_vert[3]; // triangle coordinates (clip coordinates), written by VS, read by FS
+			for (int j : {0, 1, 2})
+				clip_vert[j] = shader.vertex(i, j);
+			//shader.vertex(i, j, clip_vert[j]); // call the vertex shader for each triangle vertex
+			triangle(clip_vert, shader, *FrontBuffer, zbuffer); // actual rasterization routine call
+
+			//triangle(model, pts, zbuffer, uv, glm::vec4(intensity, intensity, intensity, intensity));
 
 			//randnom color
 			//std::default_random_engine e;
@@ -188,8 +208,8 @@ public:
 			//triangle(pts, zbuffer, glm::vec4(u(e), u(e), u(e), u(e)));
 
 		}
+		delete[] zbuffer;
 
-		delete model;
 	}
 
 	glm::vec3 world2screen(glm::vec3  v) {
@@ -209,7 +229,7 @@ public:
 		return glm::vec3(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 	}
 
-	void triangle(Model* model, glm::vec3* pts, float* zbuffer, glm::vec2* uv, glm::vec4 intensity) {
+	void triangle_old(Model* model, glm::vec3* pts, float* zbuffer, glm::vec2* uv, glm::vec4 intensity) {
 		glm::vec2 bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		glm::vec2 bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
 		glm::vec2 clamp(Width - 1, Height - 1);
@@ -235,8 +255,41 @@ public:
 				//uvP = uv[0];
 				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
 					zbuffer[int(P.x + P.y * Height)] = P.z;
-					glm::vec4 color = model->diffuse(uvP);
+					//glm::vec4 color = model->diffuse(uvP);
+					glm::vec4 color(255, 255, 255, 255);
 					FrontBuffer->WritePoint(P.x, P.y, color * intensity);
+				}
+			}
+		}
+	}
+
+	void triangle(vec4 pts[3], IShader& shader, FrameBuffer& image, float* zbuffer) {
+		glm::vec2 bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+		glm::vec2 bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+		glm::vec2 clamp(Width - 1, Height - 1);
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 2; j++) {
+				//bboxmin[j] = std::max(0.f, std::min(bboxmin[j], pts[i][j]));
+				//bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+				bboxmin[j] = std::min(bboxmin[j], pts[i][j] / pts[i][3]);
+				bboxmax[j] = std::max(bboxmax[j], pts[i][j] / pts[i][3]);
+			}
+		}
+		glm::vec3 P;
+		vec4 color;
+		for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
+			for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+				vec3 c = barycentric(proj(pts[0] / pts[0][3]), proj(pts[1] / pts[1][3]), proj(pts[2] / pts[2][3]), (P));
+				float z = pts[0][2] * c.x + pts[1][2] * c.y + pts[2][2] * c.z;
+				float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;
+				//int frag_depth = std::max(0, std::min(255, int(z / w + .5)));
+				float frag_depth = std::max(0.f, (z / w));
+				if (c.x < 0 || c.y < 0 || c.z<0 || zbuffer[int(P.x + P.y * image.Width)]>frag_depth) continue;
+				bool discard = shader.fragment(c, color);
+				if (!discard) {
+					zbuffer[int(P.x + P.y * Height)] = frag_depth;
+					//glm::vec4 color = model->diffuse(uvP);
+					FrontBuffer->WritePoint(P.x, P.y, color);
 				}
 			}
 		}
