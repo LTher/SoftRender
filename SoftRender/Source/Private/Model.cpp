@@ -72,9 +72,10 @@ glm::vec3 Model::vert(int i) {
 }
 
 glm::vec3 Model::vert(const int iface, const int nthvert) const {
-	std::vector<int> curFace;
+	/*std::vector<int> curFace;
 	for (int i = 0; i < (int)faces_[iface].size(); i++) curFace.push_back(faces_[iface][i][0]);
-	return verts_[curFace[nthvert]];
+	return verts_[curFace[nthvert]];*/
+	return verts_[faces_[iface][nthvert][0]];
 }
 
 glm::vec3 Model::normal(int i) {
@@ -82,9 +83,10 @@ glm::vec3 Model::normal(int i) {
 }
 
 glm::vec3 Model::normal(const int iface, const int nthvert) const {
-	std::vector<int> curFace;
+	/*std::vector<int> curFace;
 	for (int i = 0; i < (int)faces_[iface].size(); i++) curFace.push_back(faces_[iface][i][1]);
-	return norms_[curFace[nthvert]];
+	return norms_[curFace[nthvert]];*/
+	return glm::normalize(verts_[faces_[iface][nthvert][2]]);
 }
 
 void Model::load_texture(std::string filename, const char* suffix, cv::Mat& img) {

@@ -44,24 +44,26 @@ struct IShader {
 
 struct GouraudShader : public IShader {
 	Model& model;
+	mat4 transMatrix;
 	vec3 light_dir;
 	vec3 varying_intensity; // written by vertex shader, read by fragment shader
+	vec3 varying_color[3];
 
-	GouraudShader(Model& m, vec3 light) : model(m), light_dir(light) {
+	GouraudShader(Model& m, vec3 light, mat4 tm) : model(m), light_dir(light), transMatrix(tm) {
 		model = m;
 	}
 
 	virtual vec4 vertex(int iface, int nthvert) {
 		vec4 gl_Vertex = embed(model.vert(iface, nthvert)); // read the vertex from .obj file
 		//gl_Vertex = Viewport * Projection * ModelView * gl_Vertex;     // transform it to screen coordinates
-		float cur_intensity = dot(model.normal(iface, nthvert), light_dir);
+		float cur_intensity = -(dot(model.normal(iface, nthvert), light_dir));
 		varying_intensity[nthvert] = std::max(0.f, cur_intensity); // get diffuse lighting intensity
-		return gl_Vertex;
+		return transMatrix * gl_Vertex;
 	}
 
 	virtual bool fragment(vec3 bar, vec4& color) {
 		float intensity = dot(varying_intensity, bar);   // interpolate intensity for the current pixel
-		if (intensity <= 0.f) return true;
+		//if (intensity <= 0.f) return true;
 		color = vec4(255, 255, 255, 255) * intensity; // well duh
 		return false;                              // no, we do not discard this pixel
 	}
@@ -121,6 +123,8 @@ public:
 	vec3 light_dir = normalize(vec3(1, -1, 1));
 	vec3 eye = vec3(1, 1, 3);
 	vec3 center = vec3(0, 0, 0);
+	vec3 up{ 0,1,0 }; // camera up vector
+
 
 	mat4 ModelView;
 	mat4 Viewport;
@@ -160,11 +164,15 @@ public:
 
 
 	void drawModel(const char* filename) {
-		//Model* model = new Model("obj/african_head.obj");
-		Model* model = new Model("obj/diablo3_pose.obj");
+		Model* model = new Model("obj/african_head.obj");
+		//Model* model = new Model("obj/diablo3_pose.obj");
 
 		//Shader shader;
-		GouraudShader shader(*model, light_dir);
+		lookat(eye, center, up);                            // build the ModelView matrix
+		viewport(Width / 8, Height / 8, Width * 3 / 4, Height * 3 / 4); // build the Viewport matrix
+		projection(-1.f / length(eye - center));                    // build the Projection matrix
+		GouraudShader shader(*model, light_dir, Viewport * Projection * ModelView);
+		FrameBuffer* shaderFrame = new FrameBuffer(Width, Height);
 
 		glm::vec3 light_dir(0, 0, -1);
 		float* zbuffer = new float[Width * Height];
@@ -187,7 +195,7 @@ public:
 			for (int k = 0; k < 3; k++) {
 				uv[k] = model->uv(i, k);
 			}
-			triangle(model, pts, zbuffer, uv, glm::vec4(intensity, intensity, intensity, intensity));
+			triangle(model, pts, clip_vert, shader, zbuffer, *shaderFrame, uv, glm::vec4(intensity, intensity, intensity, intensity));
 
 			//randnom color
 			//std::default_random_engine e;
@@ -197,6 +205,11 @@ public:
 
 		}
 
+
+		cv::Mat shaderResult = Mat(Height, Width, CV_8UC4, shaderFrame->colorBuffer.data()).clone();
+		flip(shaderResult, shaderResult, 0);
+		cv::imshow("shaderResult", shaderResult);
+		delete shaderFrame;
 		delete model;
 	}
 
@@ -217,7 +230,7 @@ public:
 		return glm::vec3(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator
 	}
 
-	void triangle(Model* model, glm::vec3* pts, float* zbuffer, glm::vec2* uv, glm::vec4 intensity) {
+	void triangle(Model* model, glm::vec3* pts, glm::vec4* clip_vert, IShader& shader, float* zbuffer, FrameBuffer& shaderResult, glm::vec2* uv, glm::vec4 intensity) {
 		glm::vec2 bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		glm::vec2 bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
 		glm::vec2 clamp(Width - 1, Height - 1);
@@ -230,21 +243,35 @@ public:
 		glm::vec3 P;
 		for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
 			for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-				glm::vec3 bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+				glm::vec3 c = barycentric(pts[0], pts[1], pts[2], P);
 				glm::vec3 uv_screen = barycentric(glm::vec3(uv[0], 0), glm::vec3(uv[1], 0), glm::vec3(uv[2], 0), P);
-				if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+
+				float z = clip_vert[0][2] * c.x + clip_vert[1][2] * c.y + clip_vert[2][2] * c.z;
+				float w = clip_vert[0][3] * c.x + clip_vert[1][3] * c.y + clip_vert[2][3] * c.z;
+
+				if (c.x < 0 || c.y < 0 || c.z < 0) continue;
 				P.z = 0;
 				glm::vec2 uvP(0, 0);
 				for (int i = 0; i < 3; i++) {
-					P.z += pts[i][2] * bc_screen[i];
-					uvP.x += uv[i][0] * bc_screen[i];
-					uvP.y += uv[i][1] * bc_screen[i];
+					P.z += pts[i][2] * c[i];
+					uvP.x += uv[i][0] * c[i];
+					uvP.y += uv[i][1] * c[i];
 				}
 				//uvP = uv[0];
 				if (zbuffer[int(P.x + P.y * Width)] < P.z) {
 					zbuffer[int(P.x + P.y * Height)] = P.z;
 					glm::vec4 color = model->diffuse(uvP);
 					FrontBuffer->WritePoint(P.x, P.y, color * intensity);
+
+					vec3 c_w = vec3(c.x / w, c.y / w, c.z / w);
+					vec4 light_color;
+					bool discard = shader.fragment(c_w, light_color);
+					//if (!discard) {
+					//	//zbuffer[P.x + P.y * image.Width] = frag_depth;
+					//	shaderResult.WritePoint(P.x, P.y, fcolor);
+					//}
+					shaderResult.WritePoint(P.x, P.y, light_color);
+					//shaderResult.WritePoint(P.x, P.y, color * light_color / 255.f);
 				}
 			}
 		}
