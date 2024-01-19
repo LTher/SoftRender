@@ -101,6 +101,13 @@ vec3 Model::normal(const int iface, const int nthvert) const {
 	return norms[facet_nrm[iface * 3 + nthvert]];
 }
 
+//vec3 Model::diffuse(const vec2& uvf) const {
+//	//vec4 c = normalmap.get(uvf[0] * normalmap.width(), uvf[1] * normalmap.height());
+//
+//	Vec3b c = diffusemap.at<cv::Vec3b>(int(diffusemap.cols - uvf.y * diffusemap.cols), int(uvf.x * diffusemap.rows));
+//	return vec3((double)c[2], (double)c[1], (double)c[0]) * vec3(2. / 255.) - vec3{ 1,1,1 };
+//}
+
 //glm::vec4 Model::diffuse(glm::vec2 uv) {
 //	//return diffusemap_.get(uv.x, uv.y);
 //	//cv::Vec4b cvColor = diffusemap_.at<cv::Vec4b>(int(uv.x), int(uv.y));

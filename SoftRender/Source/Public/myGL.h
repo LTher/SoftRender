@@ -29,7 +29,8 @@ static vec1 proj(vec2 v) {
 struct IShader {
 	static vec4 sample2D(const Mat& img, vec2& uvf) {
 		//return img.get(uvf[0] * img.width(), uvf[1] * img.height());
-		Vec3b cvColor = img.at<Vec3b>(int(img.cols - uvf.y), int(uvf.x));
+		//Vec3b cvColor = img.at<Vec3b>(int(img.cols - uvf.y), int(uvf.x));
+		Vec3b cvColor = img.at<cv::Vec3b>(int(uvf.y * img.cols), int(uvf.x * img.rows));
 
 		return vec4(cvColor[0], cvColor[1], cvColor[2], 1);
 	}
@@ -74,7 +75,7 @@ void projection(float coeff) { // check https://en.wikipedia.org/wiki/Camera_mat
 }
 
 void lookat(const vec3 eye, const vec3 center, const vec3 up) { // check https://github.com/ssloy/tinyrenderer/wiki/Lesson-5-Moving-the-camera
-	vec3 z = normalize(center - eye);
+	vec3 z = -normalize(center - eye);
 	vec3 x = normalize(cross(up, z));
 	vec3 y = normalize(cross(z, x));
 	ModelView = mat4(1.0f);
@@ -84,7 +85,7 @@ void lookat(const vec3 eye, const vec3 center, const vec3 up) { // check https:/
 		ModelView[2][i] = z[i];
 		ModelView[i][3] = -center[i];
 	}
-	Projection = transpose(Projection);
+	ModelView = transpose(ModelView);
 }
 
 vec3 barycentric(vec2 A, vec2 B, vec2 C, vec2 P) {

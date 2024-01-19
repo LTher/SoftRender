@@ -31,6 +31,7 @@ public:
 	vec3 vert(const int i) const;
 	vec3 vert(const int iface, const int nthvert) const;
 	vec2 uv(const int iface, const int nthvert) const;
+	//vec3 diffuse(const vec2& uv) const;
 	const Mat& diffuse()  const { return diffusemap; }
 	const Mat& specular() const { return specularmap; }
 	/*int nverts();

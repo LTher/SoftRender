@@ -70,14 +70,22 @@ struct Shader : IShader {
 
 struct GouraudShader : public IShader {
 	Model& model;
+	vec3 uniform_l;       // light direction in view coordinates
+	mat<4, 4, float> uniform_M;   //  Projection*ModelView
+	mat<4, 4, float> uniform_MIT; // (Projection*ModelView).invert_transpose()
 	vec3 varying_intensity; // written by vertex shader, read by fragment shader
+	mat3x2 varying_uv;
 
 	GouraudShader(Model& m) : model(m) {
-		model = m;
+		uniform_l = glm::normalize(vec3((ModelView * embed(light_dir, 0.)))); // transform the light vector to view coordinates
+		uniform_M = Projection * ModelView;
+		uniform_MIT = transpose(inverse(Projection * ModelView));
 	}
 
 	virtual vec4 vertex(int iface, int nthvert) {
 		vec4 gl_Vertex = embed(model.vert(iface, nthvert)); // read the vertex from .obj file
+		varying_uv[nthvert] = model.uv(iface, nthvert);
+
 		gl_Vertex = Viewport * Projection * ModelView * gl_Vertex;     // transform it to screen coordinates
 		float cur_intensity = dot(model.normal(iface, nthvert), light_dir);
 		varying_intensity[nthvert] = std::max(0.f, cur_intensity); // get diffuse lighting intensity
@@ -86,8 +94,21 @@ struct GouraudShader : public IShader {
 
 	virtual bool fragment(vec3 bar, vec4& color) {
 		float intensity = dot(varying_intensity, bar);   // interpolate intensity for the current pixel
-		if (intensity <= 0.f) return true;
-		color = vec4(255, 255, 255, 255) * intensity; // well duh
+		vec2 uv = varying_uv * bar;
+		vec4 c = sample2D(model.diffuse(), uv);
+
+		vec3 n = normalize(proj(uniform_MIT * embed(model.normal(uv))));
+		vec3 l = normalize(proj(uniform_M * embed(light_dir)));
+		vec3 r = normalize((n * dot(n, l) * 2.f) - l);   // reflected light
+		float diff = std::max(0.f, dot(n, l));
+		float spec = pow(std::max(r.z, 0.0f), sample2D(model.specular(), uv)[0]);
+
+		//if (intensity <= 0.f) return true;
+		color = c * intensity; // well duh
+
+		//for (int i = 0; i < 3; i++) color[i] = std::min<float>(5 + c[i] * (diff + .6 * spec), 255); // (a bit of ambient light, diff + spec), clamp the result
+
+		color[3] = 255;
 		return false;                              // no, we do not discard this pixel
 	}
 };
@@ -95,7 +116,7 @@ struct GouraudShader : public IShader {
 void Init() {
 	if (FrontBuffer)
 		delete FrontBuffer;
-	FrontBuffer = new FrameBuffer(width, height,7);
+	FrontBuffer = new FrameBuffer(width, height, 7);
 }
 
 Model* loadModel(const char* filename) {
@@ -126,7 +147,7 @@ int drawModel(Model* model) {
 		vec4 clip_vert[3]; // triangle coordinates (clip coordinates), written by VS, read by FS
 		for (int j : {0, 1, 2})
 			clip_vert[j] = shader.vertex(i, j);
-			//shader.vertex(i, j, clip_vert[j]); // call the vertex shader for each triangle vertex
+		//shader.vertex(i, j, clip_vert[j]); // call the vertex shader for each triangle vertex
 		triangle(clip_vert, shader, *FrontBuffer, zbuffer); // actual rasterization routine call
 	}
 
