@@ -111,8 +111,8 @@ void triangle(vec4 pts[3], IShader& shader, FrameBuffer& image, std::vector<doub
 	}
 	vec2 P;
 	vec4 color;
-	for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-		for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
+	for (P.x = int(bboxmin.x); P.x <= int(bboxmax.x); P.x++) {
+		for (P.y = int(bboxmin.y); P.y <= int(bboxmax.y); P.y++) {
 			vec3 c = barycentric(proj(pts[0] / pts[0][3]), proj(pts[1] / pts[1][3]), proj(pts[2] / pts[2][3]), (P));
 			float z = pts[0][2] * c.x + pts[1][2] * c.y + pts[2][2] * c.z;
 			float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;

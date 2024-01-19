@@ -340,8 +340,8 @@ int main() {
 	//waitKey(0);
 
 	int picIndex = 0;
-	Model* model = loadModel("obj/african_head/african_head.obj");
-	//Model* model = loadModel("obj/diablo3_pose/diablo3_pose.obj");
+	//Model* model = loadModel("obj/african_head/african_head.obj");
+	Model* model = loadModel("obj/diablo3_pose/diablo3_pose.obj");
 	//Model* model = dw->loadModel("obj/diablo3_pose.obj");
 	while (!glfwWindowShouldClose(window))
 	{
