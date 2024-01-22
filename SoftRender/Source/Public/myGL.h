@@ -119,11 +119,7 @@ void triangle(vec4 pts[3], IShader& shader, FrameBuffer& image, std::vector<doub
 			float w = pts[0][3] * c.x + pts[1][3] * c.y + pts[2][3] * c.z;
 			int frag_depth = std::max(0, std::min(255, int(z / w + .5)));
 			//float frag_depth = std::max(0.f, (z / w));
-			//if (c.x < 0 || c.y < 0 || c.z<0 || zbuffer[P.x + P.y * image.Width]>frag_depth) continue;
-			if (c.x < 0) continue;
-			if (c.y < 0) continue;
-			if (c.z < 0) continue;
-			if (zbuffer[P.x + P.y * image.Width] > frag_depth) continue;
+			if (c.x < 0 || c.y < 0 || c.z<0 || zbuffer[P.x + P.y * image.Width]>frag_depth) continue;
 			bool discard = shader.fragment(c, color);
 			if (!discard) {
 				zbuffer[P.x + P.y * image.Width] = frag_depth;

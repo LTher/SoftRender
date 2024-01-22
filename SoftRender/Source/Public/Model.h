@@ -34,6 +34,7 @@ public:
 	//vec3 diffuse(const vec2& uv) const;
 	const Mat& diffuse()  const { return diffusemap; }
 	const Mat& specular() const { return specularmap; }
+	const Mat& normal() const { return normalmap; }
 	/*int nverts();
 	int nfaces();
 	glm::vec3 vert(int i);

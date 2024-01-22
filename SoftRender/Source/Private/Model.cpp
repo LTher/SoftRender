@@ -89,8 +89,13 @@ void Model::load_texture(std::string filename, const char* suffix, cv::Mat& img)
 vec3 Model::normal(const vec2& uvf) const {
 	//vec4 c = normalmap.get(uvf[0] * normalmap.width(), uvf[1] * normalmap.height());
 
-	Vec3b c = normalmap.at<cv::Vec3b>(int(normalmap.cols - uvf.y * normalmap.cols), int(uvf.x * normalmap.rows));
-	return vec3((double)c[2], (double)c[1], (double)c[0]) * vec3(2. / 255.) - vec3{ 1,1,1 };
+	//Vec3b c = normalmap.at<cv::Vec3b>(int(uvf.y * normalmap.cols), int(uvf.x * normalmap.rows));
+	//return vec3((double)c[2], (double)c[1], (double)c[0]) * vec3(2. / 255.) - vec3{ 1,1,1 };
+	Vec3b c = normalmap.at<cv::Vec3b>(int(uvf.y * normalmap.cols), int(uvf.x * normalmap.rows));
+	vec3 res;
+	for (int i = 0; i < 3; i++)
+		res[2 - i] = (float)c[i] / 255.f * 2.f - 1.f;
+	return res;
 }
 
 vec2 Model::uv(const int iface, const int nthvert) const {
