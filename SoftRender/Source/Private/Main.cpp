@@ -103,7 +103,7 @@ struct GouraudShader : public IShader {
 		vec3 r = normalize(-(n * dot(n, l) * 2.f) + l);   // reflected light
 		float diff = std::max(0.f, dot(n, l));
 		vec3 specular = sample2D(model.specular(), uv);
-		float spec = pow(std::max(r.z, 0.0f), specular[0]);
+		float spec = pow(std::max(intensity, 0.0f), 32);
 
 		float cur_intensity = dot(n, l) * 255;
 		//if (intensity <= 0.f) return true;
@@ -112,7 +112,8 @@ struct GouraudShader : public IShader {
 		for (int i = 0; i < 3; i++) {
 			//color[i] = std::min<float>(5 + c[i] * (diff + .6 * spec), 255); // (a bit of ambient light, diff + spec), clamp the result
 			//color[i] = std::min<float>(intensity *255, 255);
-			color[i] = std::min<float>(std::max(r.z, 0.0f)*255, 255);
+			//color[i] = std::min<float>(std::max(spec, 0.0f)*255, 255);
+			color[i] = std::min<float>(5 + color[i] + spec * 255, 255); // (a bit of ambient light, diff + spec), clamp the result
 		}
 		//color[3] = 255;
 		return false;                              // no, we do not discard this pixel
